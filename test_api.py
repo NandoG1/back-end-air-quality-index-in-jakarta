@@ -38,11 +38,11 @@ def test_weather_prediction():
     """Test the weather prediction endpoint"""
 
     payload = {
-        "pm10": 120,
-        "so2": 14,
-        "co": 125,
-        "o3": 136,
-        "no2": 22
+        "pm10": 64,
+        "so2": 8,
+        "co": 51,
+        "o3": 19,
+        "no2": 15
     }
     
     response = requests.post(f"{BASE_URL}/api/predict/weather", json=payload)

@@ -23,9 +23,9 @@ def load_model(model_path):
         return None
 
 DATE_MODEL_PATH = "models/date_model.pkl"
-WEATHER_MODEL_PATH = "models/weather_model.pkl"
+WEATHER_MODEL_PATH = "models/weather_model2.pkl"
 DATE_SCALER_PATH = "models/date_scaler.pkl"
-WEATHER_SCALER_PATH = "models/weather_scaler.pkl"
+WEATHER_SCALER_PATH = "models/weather_scaler2.pkl"
 
 
 date_model = None
