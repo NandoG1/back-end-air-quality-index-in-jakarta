@@ -62,7 +62,7 @@ def init_models():
     import os
     abs_predict_date_path = os.path.abspath(PREDICT_DATE_MODEL_PATH)
     print(f"Absolute path for predict_date model: {abs_predict_date_path}")
-    predict_date_model = load_model(abs_predict_date_path)
+    predict_date_model = load_model(PREDICT_DATE_MODEL_PATH)
     
     if predict_date_model is None:
         print(f"Failed to load predict_date model from {abs_predict_date_path}")
