@@ -14,7 +14,11 @@ load_dotenv()
 API_KEY=os.getenv("OPENWEATHER_API_KEY")
 
 app = Flask(__name__)
-CORS(app)  
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "https://front-end-index-air-quality-in-jakarta.vercel.app"
+    }
+})
 
 def load_model(model_path):
     try:
