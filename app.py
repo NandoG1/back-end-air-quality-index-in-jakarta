@@ -35,16 +35,10 @@ WEATHER_MODEL_PATH = "models/weather_parameter_model.pkl"
 DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 WEATHER_SCALER_PATH = "models/weather_parameter_scaler.pkl"
 
-
-PREDICT_DATE_MODEL_PATH = "models/weather_date_model.pkl"
-PREDICT_DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
-
 date_model = None
 weather_model = None
 date_scaler = None
 weather_scaler = None
-predict_date_model = None
-predict_date_scaler = None
 
 
 JAKARTA_LAT = -6.2088
@@ -59,18 +53,12 @@ def init_models():
     date_scaler = load_model(DATE_SCALER_PATH)
     weather_scaler = load_model(WEATHER_SCALER_PATH)
     
-    import os
-    abs_predict_date_path = os.path.abspath(PREDICT_DATE_MODEL_PATH)
-    print(f"Absolute path for predict_date model: {abs_predict_date_path}")
-    predict_date_model = load_model(PREDICT_DATE_MODEL_PATH)
+    # if predict_date_model is None:
+    #     print(f"Failed to load predict_date model from {abs_predict_date_path}")
+    #     alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "predict_date2.pkl")
+    #     print(f"Trying alternative path: {alt_path}")
+    #     predict_date_model = load_model(alt_path)
     
-    if predict_date_model is None:
-        print(f"Failed to load predict_date model from {abs_predict_date_path}")
-        alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "predict_date2.pkl")
-        print(f"Trying alternative path: {alt_path}")
-        predict_date_model = load_model(alt_path)
-    
-    predict_date_scaler = load_model(PREDICT_DATE_SCALER_PATH)
     
     if date_scaler is None:
         date_scaler = StandardScaler()
@@ -240,13 +228,13 @@ def predict_from_date():
             if df[f'critical_{param}'].iloc[0] == 1:
                 critical_params.append(param)
         
-        if predict_date_model is not None:
-            if predict_date_scaler is not None and hasattr(predict_date_scaler, 'mean_') and predict_date_scaler.mean_ is not None:
-                features_scaled = predict_date_scaler.transform(features_df)
+        if date_model is not None:
+            if date_scaler is not None and hasattr(date_scaler, 'mean_') and date_scaler.mean_ is not None:
+                features_scaled = date_scaler.transform(features_df)
                 features_df = pd.DataFrame(features_scaled, columns=features_df.columns)
             
-            prediction = predict_date_model.predict(features_df)[0]
-            prediction_proba = predict_date_model.predict_proba(features_df)[0].tolist() if hasattr(predict_date_model, 'predict_proba') else None
+            prediction = date_model.predict(features_df)[0]
+            prediction_proba = date_model.predict_proba(features_df)[0].tolist() if hasattr(date_model, 'predict_proba') else None
             model_used = "predict_date_model"
             print("Successfully used predict_date_model for prediction")
         else:
@@ -340,24 +328,24 @@ def predict_from_weather():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    return jsonify({
-        "status": "healthy", 
-        "models_loaded": {
-            "date_model": date_model is not None,
-            "weather_model": weather_model is not None,
-            "predict_date_model": predict_date_model is not None,
-            "date_scaler": date_scaler is not None,
-            "weather_scaler": weather_scaler is not None,
-            "predict_date_scaler": predict_date_scaler is not None
-        },
-        "model_paths": {
-            "DATE_MODEL_PATH": DATE_MODEL_PATH,
-            "WEATHER_MODEL_PATH": WEATHER_MODEL_PATH,
-            "PREDICT_DATE_MODEL_PATH": PREDICT_DATE_MODEL_PATH
-        }
-    })
+# @app.route('/api/health', methods=['GET'])
+# def health_check():
+#     return jsonify({
+#         "status": "healthy", 
+#         "models_loaded": {
+#             "date_model": date_model is not None,
+#             "weather_model": weather_model is not None,
+#             "predict_date_model": predict_date_model is not None,
+#             "date_scaler": date_scaler is not None,
+#             "weather_scaler": weather_scaler is not None,
+#             "predict_date_scaler": predict_date_scaler is not None
+#         },
+#         "model_paths": {
+#             "DATE_MODEL_PATH": DATE_MODEL_PATH,
+#             "WEATHER_MODEL_PATH": WEATHER_MODEL_PATH,
+#             "PREDICT_DATE_MODEL_PATH": PREDICT_DATE_MODEL_PATH
+#         }
+#     })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
