@@ -18,10 +18,27 @@ CORS(app)
 
 def load_model(model_path):
     try:
+        # Check if file exists first
+        abs_path = os.path.abspath(model_path)
         print(f"Attempting to load model from: {model_path}")
-        with open(model_path, 'rb') as file:
+        print(f"Absolute path: {abs_path}")
+        print(f"File exists: {os.path.exists(abs_path)}")
+        print(f"Current working directory: {os.getcwd()}")
+        
+        if not os.path.exists(abs_path):
+            # Try relative to script directory
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            alt_path = os.path.join(script_dir, model_path)
+            print(f"Trying alternative path: {alt_path}")
+            if os.path.exists(alt_path):
+                abs_path = alt_path
+            else:
+                print(f"Model file not found at any location: {model_path}")
+                return None
+        
+        with open(abs_path, 'rb') as file:
             model = pickle.load(file)
-        print(f"Successfully loaded model from: {model_path}")
+        print(f"Successfully loaded model from: {abs_path}")
         return model
     except FileNotFoundError:
         print(f"Model file not found: {model_path}")
@@ -54,19 +71,33 @@ def init_models():
     global date_model, weather_model, date_scaler, weather_scaler, predict_date_model, predict_date_scaler
     
     print("\nInitializing models...")
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+    
+    # List contents of models directory
+    models_dir = "models"
+    if os.path.exists(models_dir):
+        print(f"Contents of {models_dir} directory:")
+        for file in os.listdir(models_dir):
+            full_path = os.path.join(models_dir, file)
+            print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
+    else:
+        print(f"Models directory '{models_dir}' does not exist!")
+        # Try absolute path
+        abs_models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+        if os.path.exists(abs_models_dir):
+            print(f"Found models directory at: {abs_models_dir}")
+            print(f"Contents:")
+            for file in os.listdir(abs_models_dir):
+                full_path = os.path.join(abs_models_dir, file)
+                print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
+    
     date_model = load_model(DATE_MODEL_PATH)
     weather_model = load_model(WEATHER_MODEL_PATH)
     date_scaler = load_model(DATE_SCALER_PATH)
     weather_scaler = load_model(WEATHER_SCALER_PATH)
     
     predict_date_model = load_model(DATE_MODEL_PATH)
-    
-    # if predict_date_model is None:
-    #     print(f"Failed to load predict_date model from {abs_predict_date_path}")
-    #     alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "predict_date2.pkl")
-    #     print(f"Trying alternative path: {alt_path}")
-    #     predict_date_model = load_model(alt_path)
-    
     predict_date_scaler = load_model(PREDICT_DATE_SCALER_PATH)
     
     if date_scaler is None:
@@ -246,8 +277,32 @@ def predict_from_date():
             prediction_proba = predict_date_model.predict_proba(features_df)[0].tolist() if hasattr(predict_date_model, 'predict_proba') else None
             model_used = "predict_date_model"
             print("Successfully used predict_date_model for prediction")
+        elif date_model is not None:
+            # Fallback to date_model if predict_date_model fails
+            if date_scaler is not None and hasattr(date_scaler, 'mean_') and date_scaler.mean_ is not None:
+                features_scaled = date_scaler.transform(features_df)
+                features_df = pd.DataFrame(features_scaled, columns=features_df.columns)
+            
+            prediction = date_model.predict(features_df)[0]
+            prediction_proba = date_model.predict_proba(features_df)[0].tolist() if hasattr(date_model, 'predict_proba') else None
+            model_used = "date_model (fallback)"
+            print("Using date_model as fallback for prediction")
         else:
-            return jsonify({"error": "No prediction models available"}), 500
+            # Try to reinitialize models once more
+            print("Attempting to reinitialize models...")
+            init_models()
+            
+            if predict_date_model is not None:
+                if predict_date_scaler is not None and hasattr(predict_date_scaler, 'mean_') and predict_date_scaler.mean_ is not None:
+                    features_scaled = predict_date_scaler.transform(features_df)
+                    features_df = pd.DataFrame(features_scaled, columns=features_df.columns)
+                
+                prediction = predict_date_model.predict(features_df)[0]
+                prediction_proba = predict_date_model.predict_proba(features_df)[0].tolist() if hasattr(predict_date_model, 'predict_proba') else None
+                model_used = "predict_date_model (after reinit)"
+                print("Successfully used predict_date_model after reinitialization")
+            else:
+                return jsonify({"error": "No prediction models available"}), 500
             
         pollutant_stats = {}
         for pollutant, values in stats.items():
@@ -339,8 +394,28 @@ def predict_from_weather():
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
+    # Check if models directory exists and list its contents
+    models_dir_info = {}
+    models_dir = "models"
+    if os.path.exists(models_dir):
+        models_dir_info["exists"] = True
+        models_dir_info["contents"] = []
+        for file in os.listdir(models_dir):
+            full_path = os.path.join(models_dir, file)
+            models_dir_info["contents"].append({
+                "name": file,
+                "size": os.path.getsize(full_path),
+                "path": full_path
+            })
+    else:
+        models_dir_info["exists"] = False
+        models_dir_info["contents"] = []
+
     return jsonify({
         "status": "healthy", 
+        "working_directory": os.getcwd(),
+        "script_directory": os.path.dirname(os.path.abspath(__file__)),
+        "models_directory": models_dir_info,
         "models_loaded": {
             "date_model": date_model is not None,
             "weather_model": weather_model is not None,
