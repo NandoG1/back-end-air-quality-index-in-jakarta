@@ -1,77 +1,70 @@
 import requests
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
-# Base URL for the API
-BASE_URL = "http://localhost:5000"
+# Configuration
+API_URL = "http://localhost:5000/api/predict/date"  # Change if your API is hosted elsewhere
+TEST_DATES = [
+    datetime.now().strftime("%Y-%m-%d"),  # Today
+    (datetime.now() + timedelta(days=10)).strftime("%Y-%m-%d"),  # A week ago
+]
 
-# def test_health():
-#     """Test the health endpoint"""
-#     response = requests.get(f"{BASE_URL}/api/health")
-#     print("Health Check:")
-#     print(f"Status Code: {response.status_code}")
-#     print(f"Response: {json.dumps(response.json(), indent=2)}")
-#     print("\n" + "-"*50 + "\n")
-
-def test_date_prediction():
-    """Test the date prediction endpoint"""
-  
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    payload = {"date": current_date}
+def test_date_prediction(date_str):
+    """Test the date prediction endpoint with a specific date"""
     
-    response = requests.post(f"{BASE_URL}/api/predict/date", json=payload)
-    print("Date Prediction:")
-    print(f"Input Date: {current_date}")
-    print(f"Status Code: {response.status_code}")
+    print(f"\n=== Testing with date: {date_str} ===")
     
-    if response.status_code == 200:
-        result = response.json()
-        print(f"Prediction: {result['prediction']}")
-        print(f"Category: {result['category']}")
-        print(f"Probability: {result['probability']}")
-    else:
-        print(f"Error: {response.text}")
-    
-    print("\n" + "-"*50 + "\n")
-
-def test_weather_prediction():
-    """Test the weather prediction endpoint"""
-
-    payload = {
-        "pm10": 64,
-        "so2": 8,
-        "co": 51,
-        "o3": 19,
-        "no2": 15
-    }
-    
-    response = requests.post(f"{BASE_URL}/api/predict/weather", json=payload)
-    print("Weather Prediction:")
-    print(f"Input Parameters: {json.dumps(payload, indent=2)}")
-    print(f"Status Code: {response.status_code}")
-    
-    if response.status_code == 200:
-        result = response.json()
-        print(f"Prediction: {result['prediction']}")
-        print(f"Category: {result['category']}")
-        print(f"Max Value: {result['max_value']}")
-        print(f"Critical Parameters: {result['critical_parameters']}")
-        print(f"Probability: {result['probability']}")
-    else:
-        print(f"Error: {response.text}")
-    
-    print("\n" + "-"*50 + "\n")
-
-if __name__ == "__main__":
-    print("Testing API endpoints...\n")
+    # Prepare the request payload
+    payload = {"date": date_str}
     
     try:
-        # test_health()
-        test_date_prediction()
-        test_weather_prediction()
+        # Make the API request
+        response = requests.post(API_URL, json=payload)
         
-        print("All tests completed!")
-    except requests.exceptions.ConnectionError:
-        print("Error: Could not connect to the API. Make sure the Flask app is running.")
+        # Print the response status
+        print(f"Status Code: {response.status_code}")
+        
+        # Check if request was successful
+        if response.status_code == 200:
+            result = response.json()
+            
+            # Pretty print the response
+            print("Response:")
+            print(json.dumps(result, indent=2))
+            
+            # Extract and display key information
+            print("\nKey Information:")
+            print(f"Prediction Category: {result.get('category')}")
+            print(f"Model Used: {result.get('model_used')}")
+            
+            # Critical parameters
+            critical_params = result.get('critical_parameters', [])
+            print(f"Critical Parameters: {', '.join(critical_params) if critical_params else 'None'}")
+            
+            # Analysis period
+            analysis_period = result.get('analysis_period', {})
+            if analysis_period:
+                print(f"Analysis Period: {analysis_period.get('start_date')} to {analysis_period.get('end_date')}")
+                
+        else:
+            print(f"Error: {response.text}")
+            
     except Exception as e:
-        print(f"Error during testing: {str(e)}") 
+        print(f"Exception occurred: {str(e)}")
+
+def run_all_tests():
+    """Run tests with all predefined dates"""
+    print("Starting API tests...")
+    
+    for date_str in TEST_DATES:
+        test_date_prediction(date_str)
+        
+    print("\nAll tests completed!")
+
+if __name__ == "__main__":
+    # Option 1: Run all predefined tests
+    run_all_tests()
+    
+    # Option 2: Test with a specific date input from user
+    # custom_date = input("\nEnter a date to test (YYYY-MM-DD, Month DD, YYYY, or DD-MM-YYYY): ")
+    # test_date_prediction(custom_date)

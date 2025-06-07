@@ -2,48 +2,93 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import numpy as np
+import requests
 from sklearn.preprocessing import StandardScaler
+from dotenv import load_dotenv
+
+load_dotenv()
+
+API_KEY=os.getenv("OPENWEATHER_API_KEY")
 
 app = Flask(__name__)
 CORS(app)  
 
 def load_model(model_path):
     try:
+        print(f"Attempting to load model from: {model_path}")
         with open(model_path, 'rb') as file:
             model = pickle.load(file)
+        print(f"Successfully loaded model from: {model_path}")
         return model
     except FileNotFoundError:
         print(f"Model file not found: {model_path}")
         return None
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"Error loading model: {e} from {model_path}")
         return None
 
-DATE_MODEL_PATH = "models/date_model.pkl"
-WEATHER_MODEL_PATH = "models/weather_model2.pkl"
-DATE_SCALER_PATH = "models/date_scaler.pkl"
-WEATHER_SCALER_PATH = "models/weather_scaler2.pkl"
+DATE_MODEL_PATH = "models/weather_date_model.pkl"
+WEATHER_MODEL_PATH = "models/weather_parameter_model.pkl"
+DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
+WEATHER_SCALER_PATH = "models/weather_parameter_scaler.pkl"
 
+
+PREDICT_DATE_MODEL_PATH = "models/predict_date4.pkl"
+PREDICT_DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 
 date_model = None
 weather_model = None
 date_scaler = None
 weather_scaler = None
+predict_date_model = None
+predict_date_scaler = None
+
+
+JAKARTA_LAT = -6.2088
+JAKARTA_LON = 106.8456
 
 def init_models():
-    global date_model, weather_model, date_scaler, weather_scaler
+    global date_model, weather_model, date_scaler, weather_scaler, predict_date_model, predict_date_scaler
+    
+    print("\nInitializing models...")
     date_model = load_model(DATE_MODEL_PATH)
     weather_model = load_model(WEATHER_MODEL_PATH)
     date_scaler = load_model(DATE_SCALER_PATH)
     weather_scaler = load_model(WEATHER_SCALER_PATH)
     
+    import os
+    abs_predict_date_path = os.path.abspath(PREDICT_DATE_MODEL_PATH)
+    print(f"Absolute path for predict_date model: {abs_predict_date_path}")
+    predict_date_model = load_model(abs_predict_date_path)
+    
+    if predict_date_model is None:
+        print(f"Failed to load predict_date model from {abs_predict_date_path}")
+        alt_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models", "predict_date2.pkl")
+        print(f"Trying alternative path: {alt_path}")
+        predict_date_model = load_model(alt_path)
+    
+    predict_date_scaler = load_model(PREDICT_DATE_SCALER_PATH)
+    
     if date_scaler is None:
         date_scaler = StandardScaler()
+        print("Created new date_scaler")
     if weather_scaler is None:
         weather_scaler = StandardScaler()
+        print("Created new weather_scaler")
+    if predict_date_scaler is None:
+        predict_date_scaler = StandardScaler()
+        print("Created new predict_date_scaler")
+        
+    print("\nModel loading status:")
+    print(f"date_model: {'Loaded' if date_model is not None else 'Failed'}") 
+    print(f"weather_model: {'Loaded' if weather_model is not None else 'Failed'}") 
+    print(f"date_scaler: {'Loaded' if date_scaler is not None else 'Failed'}") 
+    print(f"weather_scaler: {'Loaded' if weather_scaler is not None else 'Failed'}") 
+    print(f"predict_date_model: {'Loaded' if predict_date_model is not None else 'Failed'}") 
+    print(f"predict_date_scaler: {'Loaded' if predict_date_scaler is not None else 'Failed'}")
 
 init_models()
 
@@ -53,6 +98,80 @@ CATEGORY_LABELS = {
     2: "SEDANG", 
     3: "TIDAK SEHAT"
 }
+
+def get_air_quality_trend(lat, lon, start_date, end_date, api_key):
+    start_timestamp = int(datetime.strptime(start_date, '%Y-%m-%d').timestamp())
+    end_timestamp = int(datetime.strptime(end_date, '%Y-%m-%d').timestamp())
+    
+    url = "https://api.openweathermap.org/data/2.5/air_pollution/history"
+    params = {
+        "lat": lat,
+        "lon": lon,
+        "start": start_timestamp,
+        "end": end_timestamp,
+        "appid": api_key
+    }
+    
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if response.status_code == 200:
+            records = []
+            for item in data.get('list', []):
+                dt = item.get('dt', 0)
+                date_obj = datetime.fromtimestamp(dt)
+                components = item.get('components', {})
+                
+                records.append({
+                    'date': date_obj.date(),
+                    'datetime': date_obj,
+                    'pm10': components.get('pm10', 0),
+                    'o3': components.get('o3', 0),
+                    'no2': components.get('no2', 0),
+                    'so2': components.get('so2', 0),
+                    'co': components.get('co', 0),
+                })
+            
+            df = pd.DataFrame(records)
+            
+            daily_df = df.groupby('date').agg({
+                'pm10': 'mean',
+                'o3': 'mean',
+                'no2': 'mean',
+                'so2': 'mean',
+                'co': 'mean',
+            }).reset_index()
+            
+            pollutants = ['pm10', 'so2', 'co', 'o3', 'no2']
+            stats = {}
+            
+            for pollutant in pollutants:
+                series = daily_df[pollutant]
+                
+                slope = np.polyfit(np.arange(len(series)), series, 1)[0] if len(series) > 1 else 0
+                
+                stats[pollutant] = {
+                    'mean': series.mean(),
+                    'std': series.std() if len(series) > 1 else 0,
+                    'min': series.min(),
+                    'max': series.max(),
+                    'median': series.median(),
+                    'range': series.max() - series.min(),
+                    'last': series.iloc[-1] if not series.empty else 0,
+                    'slope': slope
+                }
+            
+            return {
+                'raw_data': data,
+                'daily_data': daily_df.to_dict('records'),
+                'statistics': stats
+            }
+        else:
+            return {"error": f"API Error: {response.status_code}", "details": data}
+            
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.route('/api/predict/date', methods=['POST'])
 def predict_from_date():
@@ -64,7 +183,6 @@ def predict_from_date():
             return jsonify({"error": "Date parameter is required"}), 400
         
         try:
-            
             try:
                 date_obj = datetime.strptime(date_str, '%Y-%m-%d')
             except ValueError:
@@ -75,50 +193,92 @@ def predict_from_date():
         except Exception as e:
             return jsonify({"error": f"Invalid date format. Please use YYYY-MM-DD, Month DD, YYYY, or DD-MM-YYYY: {str(e)}"}), 400
         
+        end_date = date_obj.strftime('%Y-%m-%d')
+        start_date = (date_obj - timedelta(days=7)).strftime('%Y-%m-%d')
         
-        df = pd.DataFrame([{'tanggal': date_obj}])
+        result = get_air_quality_trend(JAKARTA_LAT, JAKARTA_LON, start_date, end_date, API_KEY)
         
+        if 'error' in result:
+            return jsonify({"error": result['error']}), 500
         
-        df['year'] = df['tanggal'].dt.year
-        df['month'] = df['tanggal'].dt.month
-        df['day'] = df['tanggal'].dt.day
-        df['dayofweek'] = df['tanggal'].dt.dayofweek  
-        df['is_weekend'] = df['dayofweek'].apply(lambda x: 1 if x >= 5 else 0)
-        df['month_sin'] = np.sin(2 * np.pi * df['month']/12)
-        df['month_cos'] = np.cos(2 * np.pi * df['month']/12)
-        df['dayofweek_sin'] = np.sin(2 * np.pi * df['dayofweek']/7)
-        df['dayofweek_cos'] = np.cos(2 * np.pi * df['dayofweek']/7)
-        df['month_day'] = df['month'] * df['day']
-        df['weekend_month'] = df['is_weekend'] * df['month']
+        if 'statistics' not in result:
+            return jsonify({"error": "Failed to retrieve air quality statistics"}), 500
         
+        stats = result['statistics']
         
-        features = df.drop('tanggal', axis=1)
+        features_dict = {}
         
-       
-        if date_scaler is not None:
+        pollutant_order = ['pm10', 'so2', 'co', 'o3', 'no2']
+        stat_order = ['mean', 'std', 'min', 'max', 'median', 'range', 'last', 'slope']
+        
+        for pollutant in pollutant_order:
+            for stat in stat_order:
+                feature_name = f"{stat}_{pollutant}"
+                features_dict[feature_name] = stats[pollutant][stat]
+        
+        features_df = pd.DataFrame([features_dict])
+        
+        print("Feature names being used for prediction:")
+        print(features_df.columns.tolist())
+        
+        weather_params = {
+            'pm10': stats['pm10']['last'],
+            'so2': stats['so2']['last'],
+            'co': stats['co']['last'],
+            'o3': stats['o3']['last'],
+            'no2': stats['no2']['last']
+        }
+        
+        df = pd.DataFrame([weather_params])
+        df['max'] = df[['pm10', 'so2', 'co', 'o3', 'no2']].max(axis=1)
+        
+        for param in ['pm10', 'so2', 'co', 'o3', 'no2']:
+            df[f'critical_{param.upper()}'] = (df[param] == df['max']).astype(int)
+        
+        critical_params = []
+        for param in ['PM10', 'SO2', 'CO', 'O3', 'NO2']:
+            if df[f'critical_{param}'].iloc[0] == 1:
+                critical_params.append(param)
+        
+        if predict_date_model is not None:
+            if predict_date_scaler is not None and hasattr(predict_date_scaler, 'mean_') and predict_date_scaler.mean_ is not None:
+                features_scaled = predict_date_scaler.transform(features_df)
+                features_df = pd.DataFrame(features_scaled, columns=features_df.columns)
             
-            if hasattr(date_scaler, 'mean_') and date_scaler.mean_ is not None:
-                features_scaled = date_scaler.transform(features)
-           
-            else:
-                features_scaled = date_scaler.fit_transform(features)
-            
-            
-            features = pd.DataFrame(features_scaled, columns=features.columns)
-        
-        if date_model is not None:
-            prediction = date_model.predict(features)[0]
-            prediction_proba = date_model.predict_proba(features)[0].tolist() if hasattr(date_model, 'predict_proba') else None
-            
-            result = {
-                "prediction": int(prediction),
-                "category": CATEGORY_LABELS.get(int(prediction), "UNKNOWN"),
-                "probability": prediction_proba
-            }
-            return jsonify(result)
+            prediction = predict_date_model.predict(features_df)[0]
+            prediction_proba = predict_date_model.predict_proba(features_df)[0].tolist() if hasattr(predict_date_model, 'predict_proba') else None
+            model_used = "predict_date_model"
+            print("Successfully used predict_date_model for prediction")
         else:
-            return jsonify({"error": "Model not loaded properly"}), 500
-    
+            return jsonify({"error": "No prediction models available"}), 500
+            
+        pollutant_stats = {}
+        for pollutant, values in stats.items():
+            pollutant_stats[pollutant] = {
+                'mean': float(values['mean']),
+                'std': float(values['std']),
+                'min': float(values['min']),
+                'max': float(values['max']),
+                'median': float(values['median']),
+                'range': float(values['range']),
+                'last': float(values['last']),
+                'slope': float(values['slope'])
+            }
+        
+        result = {
+            "prediction": int(prediction),
+            "category": CATEGORY_LABELS.get(int(prediction), "UNKNOWN"),
+            "probability": prediction_proba,
+            "max_value": float(df['max'].iloc[0]),
+            "critical_parameters": critical_params,
+            "model_used": model_used,
+            "air_quality_statistics": pollutant_stats,
+            "analysis_period": {
+                "start_date": start_date,
+                "end_date": end_date
+            }
+        }
+        return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
