@@ -36,7 +36,7 @@ DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 WEATHER_SCALER_PATH = "models/weather_parameter_scaler.pkl"
 
 
-PREDICT_DATE_MODEL_PATH = "models/predict_date4.pkl"
+PREDICT_DATE_MODEL_PATH = "models/weather_date_model.pkl"
 PREDICT_DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 
 date_model = None
