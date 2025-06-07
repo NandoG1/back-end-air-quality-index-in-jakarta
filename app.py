@@ -268,13 +268,13 @@ def predict_from_date():
             if df[f'critical_{param}'].iloc[0] == 1:
                 critical_params.append(param)
         
-        if predict_date_model is not None:
+        if date_model is not None:
             if predict_date_scaler is not None and hasattr(predict_date_scaler, 'mean_') and predict_date_scaler.mean_ is not None:
                 features_scaled = predict_date_scaler.transform(features_df)
                 features_df = pd.DataFrame(features_scaled, columns=features_df.columns)
             
-            prediction = predict_date_model.predict(features_df)[0]
-            prediction_proba = predict_date_model.predict_proba(features_df)[0].tolist() if hasattr(predict_date_model, 'predict_proba') else None
+            prediction = date_model.predict(features_df)[0]
+            prediction_proba = date_model.predict_proba(features_df)[0].tolist() if hasattr(date_model, 'predict_proba') else None
             model_used = "predict_date_model"
             print("Successfully used predict_date_model for prediction")
         elif date_model is not None:
