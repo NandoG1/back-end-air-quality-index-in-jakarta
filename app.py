@@ -340,14 +340,24 @@ def predict_from_weather():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# @app.route('/api/health', methods=['GET'])
-# def health_check():
-#     return jsonify({"status": "healthy", "models_loaded": {
-#         "date_model": date_model is not None,
-#         "weather_model": weather_model is not None,
-#         "date_scaler": date_scaler is not None,
-#         "weather_scaler": weather_scaler is not None
-#     }})
+@app.route('/api/health', methods=['GET'])
+def health_check():
+    return jsonify({
+        "status": "healthy", 
+        "models_loaded": {
+            "date_model": date_model is not None,
+            "weather_model": weather_model is not None,
+            "predict_date_model": predict_date_model is not None,
+            "date_scaler": date_scaler is not None,
+            "weather_scaler": weather_scaler is not None,
+            "predict_date_scaler": predict_date_scaler is not None
+        },
+        "model_paths": {
+            "DATE_MODEL_PATH": DATE_MODEL_PATH,
+            "WEATHER_MODEL_PATH": WEATHER_MODEL_PATH,
+            "PREDICT_DATE_MODEL_PATH": PREDICT_DATE_MODEL_PATH
+        }
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
