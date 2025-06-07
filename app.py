@@ -47,13 +47,13 @@ def load_model(model_path):
         print(f"Error loading model: {e} from {model_path}")
         return None
 
-DATE_MODEL_PATH = "models/weather_date_model.pkl"
+DATE_MODEL_PATH = "models/weather_date_model2.pkl"
 WEATHER_MODEL_PATH = "models/weather_parameter_model.pkl"
 DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 WEATHER_SCALER_PATH = "models/weather_parameter_scaler.pkl"
 
 
-PREDICT_DATE_MODEL_PATH = "models/weather_date_model.pkl"
+PREDICT_DATE_MODEL_PATH = "models/weather_date_model2.pkl"
 PREDICT_DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 
 date_model = None
