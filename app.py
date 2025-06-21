@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 import os
 import numpy as np
 import requests
-from sklearn.preprocessing import StandardScaler
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -79,96 +78,6 @@ predict_date_scaler = None
 JAKARTA_LAT = -6.2088
 JAKARTA_LON = 106.8456
 
-def create_fallback_model():
-    """Create a simple fallback model if the main models fail to load"""
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.model_selection import train_test_split
-    import numpy as np
-    
-    print("Creating fallback model...")
-    
-    # Create some dummy training data with the same structure as your real data
-    np.random.seed(42)
-    n_samples = 1000
-    
-    # Generate features similar to your air quality features
-    features = []
-    for _ in range(n_samples):
-        # pm10, so2, co, o3, no2 with their stats (mean, std, min, max, median, range, last, slope)
-        sample = []
-        for pollutant in ['pm10', 'so2', 'co', 'o3', 'no2']:
-            for stat in ['mean', 'std', 'min', 'max', 'median', 'range', 'last', 'slope']:
-                if stat == 'std':
-                    sample.append(np.random.uniform(0, 10))
-                elif stat == 'slope':
-                    sample.append(np.random.uniform(-1, 1))
-                else:
-                    sample.append(np.random.uniform(0, 100))
-        features.append(sample)
-    
-    features = np.array(features)
-    
-    # Generate labels (0: BAIK, 1: SANGAT TIDAK SEHAT, 2: SEDANG, 3: TIDAK SEHAT)
-    labels = np.random.choice([0, 1, 2, 3], n_samples, p=[0.4, 0.1, 0.3, 0.2])
-    
-    # Train a simple model
-    model = RandomForestClassifier(n_estimators=10, random_state=42)
-    model.fit(features, labels)
-    
-    print("Fallback model created successfully")
-    return model
-    global date_model, weather_model, date_scaler, weather_scaler, predict_date_model, predict_date_scaler
-    
-    print("\nInitializing models...")
-    print(f"Current working directory: {os.getcwd()}")
-    print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
-    
-    # List contents of models directory
-    models_dir = "models"
-    if os.path.exists(models_dir):
-        print(f"Contents of {models_dir} directory:")
-        for file in os.listdir(models_dir):
-            full_path = os.path.join(models_dir, file)
-            print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
-    else:
-        print(f"Models directory '{models_dir}' does not exist!")
-        # Try absolute path
-        abs_models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
-        if os.path.exists(abs_models_dir):
-            print(f"Found models directory at: {abs_models_dir}")
-            print(f"Contents:")
-            for file in os.listdir(abs_models_dir):
-                full_path = os.path.join(abs_models_dir, file)
-                print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
-    
-    date_model = load_model(DATE_MODEL_PATH)
-    weather_model = load_model(WEATHER_MODEL_PATH)
-    date_scaler = load_model(DATE_SCALER_PATH)
-    weather_scaler = load_model(WEATHER_SCALER_PATH)
-    
-    predict_date_model = load_model(DATE_MODEL_PATH)
-    predict_date_scaler = load_model(PREDICT_DATE_SCALER_PATH)
-    
-    if date_scaler is None:
-        date_scaler = StandardScaler()
-        print("Created new date_scaler")
-    if weather_scaler is None:
-        weather_scaler = StandardScaler()
-        print("Created new weather_scaler")
-    if predict_date_scaler is None:
-        predict_date_scaler = StandardScaler()
-        print("Created new predict_date_scaler")
-        
-    print("\nModel loading status:")
-    print(f"date_model: {'Loaded' if date_model is not None else 'Failed'}") 
-    print(f"weather_model: {'Loaded' if weather_model is not None else 'Failed'}") 
-    print(f"date_scaler: {'Loaded' if date_scaler is not None else 'Failed'}") 
-    print(f"weather_scaler: {'Loaded' if weather_scaler is not None else 'Failed'}") 
-    print(f"predict_date_model: {'Loaded' if predict_date_model is not None else 'Failed'}") 
-    print(f"predict_date_scaler: {'Loaded' if predict_date_scaler is not None else 'Failed'}")
-
-init_models()
-
 CATEGORY_LABELS = {
     0: "BAIK", 
     1: "SANGAT TIDAK SEHAT", 
@@ -231,10 +140,7 @@ def get_air_quality_trend(lat, lon, start_date, end_date, api_key):
                 stats[pollutant] = {
                     'mean': series.mean(),
                     'std': series.std() if len(series) > 1 else 0,
-                    'min': series.min(),
-                    'max': series.max(),
                     'median': series.median(),
-                    'range': series.max() - series.min(),
                     'last': series.iloc[-1] if not series.empty else 0,
                     'slope': slope
                 }
@@ -286,7 +192,7 @@ def predict_from_date():
         features_dict = {}
         
         pollutant_order = ['pm10', 'so2', 'co', 'o3', 'no2']
-        stat_order = ['mean', 'std', 'min', 'max', 'median', 'range', 'last', 'slope']
+        stat_order = ['mean', 'std', 'median', 'last', 'slope']
         
         for pollutant in pollutant_order:
             for stat in stat_order:
@@ -339,7 +245,6 @@ def predict_from_date():
         else:
             # Try to reinitialize models once more
             print("Attempting to reinitialize models...")
-            init_models()
             
             if predict_date_model is not None:
                 if predict_date_scaler is not None and hasattr(predict_date_scaler, 'mean_') and predict_date_scaler.mean_ is not None:
@@ -358,10 +263,7 @@ def predict_from_date():
             pollutant_stats[pollutant] = {
                 'mean': float(values['mean']),
                 'std': float(values['std']),
-                'min': float(values['min']),
-                'max': float(values['max']),
                 'median': float(values['median']),
-                'range': float(values['range']),
                 'last': float(values['last']),
                 'slope': float(values['slope'])
             }
