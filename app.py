@@ -59,13 +59,13 @@ def load_model(model_path):
         print(f"Error type: {type(e).__name__}")
         return None
 
-DATE_MODEL_PATH = "models/weather_date_model.pkl"
+DATE_MODEL_PATH = "models/weather_date_model3.pkl"
 WEATHER_MODEL_PATH = "models/weather_parameter_model.pkl"
 DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 WEATHER_SCALER_PATH = "models/weather_parameter_scaler.pkl"
 
 
-PREDICT_DATE_MODEL_PATH = "models/weather_date_model.pkl"
+PREDICT_DATE_MODEL_PATH = "models/weather_date_model3.pkl"
 PREDICT_DATE_SCALER_PATH = "models/weather_date_scaler.pkl"
 
 date_model = None
@@ -193,6 +193,13 @@ def get_air_quality_trend(lat, lon, start_date, end_date, api_key):
                 
                 stats[pollutant] = {
                     'mean': series.mean(),
+                    'std': series.std() if len(series) > 1 else 0,
+                    'min': series.min(),
+                    'max': series.max(),
+                    'median': series.median(),
+                    'range': series.max() - series.min(),
+                    'last': series.iloc[-1] if not series.empty else 0,
+                    'slope': slope
                 }
             
             return {
@@ -243,7 +250,7 @@ def predict_from_date():
         features_dict = {}
         
         pollutant_order = ['pm10', 'so2', 'co', 'o3', 'no2']
-        stat_order = ['mean']
+        stat_order = ['mean', 'std', 'min', 'max', 'median', 'range', 'last', 'slope']
         
         for pollutant in pollutant_order:
             for stat in stat_order:
@@ -256,11 +263,11 @@ def predict_from_date():
         print(features_df.columns.tolist())
         
         weather_params = {
-            'pm10': stats['pm10'],
-            'so2': stats['so2'],
-            'co': stats['co'],
-            'o3': stats['o3'],
-            'no2': stats['no2']
+            'pm10': stats['pm10']['last'],
+            'so2': stats['so2']['last'],
+            'co': stats['co']['last'],
+            'o3': stats['o3']['last'],
+            'no2': stats['no2']['last']
         }
         
         df = pd.DataFrame([weather_params])
@@ -313,6 +320,13 @@ def predict_from_date():
         for pollutant, values in stats.items():
             pollutant_stats[pollutant] = {
                 'mean': float(values['mean']),
+                'std': float(values['std']),
+                'min': float(values['min']),
+                'max': float(values['max']),
+                'median': float(values['median']),
+                'range': float(values['range']),
+                'last': float(values['last']),
+                'slope': float(values['slope'])
             }
         
         result = {
