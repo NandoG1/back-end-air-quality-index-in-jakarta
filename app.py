@@ -256,11 +256,11 @@ def predict_from_date():
         print(features_df.columns.tolist())
         
         weather_params = {
-            'pm10': stats['pm10']['last'],
-            'so2': stats['so2']['last'],
-            'co': stats['co']['last'],
-            'o3': stats['o3']['last'],
-            'no2': stats['no2']['last']
+            'pm10': stats['pm10'],
+            'so2': stats['so2'],
+            'co': stats['co'],
+            'o3': stats['o3'],
+            'no2': stats['no2']
         }
         
         df = pd.DataFrame([weather_params])
