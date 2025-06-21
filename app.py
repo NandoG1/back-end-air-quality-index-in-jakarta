@@ -407,7 +407,7 @@ def health_check():
         models_dir_info["exists"] = True
         models_dir_info["contents"] = []
         for file in os.listdir(models_dir):
-            full_path = os.path.join(models_dir, file)
+            full_path = os.path.join(models_dir, file)  
             models_dir_info["contents"].append({
                 "name": file,
                 "size": os.path.getsize(full_path),
