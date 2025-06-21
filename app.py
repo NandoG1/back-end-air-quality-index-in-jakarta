@@ -213,6 +213,7 @@ def get_air_quality_trend(lat, lon, start_date, end_date, api_key):
 @app.route('/api/predict/date', methods=['POST'])
 def predict_from_date():
     try:
+        init_models()
         data = request.json
         date_str = data.get('date')
         
