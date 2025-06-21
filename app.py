@@ -8,13 +8,105 @@ import numpy as np
 import requests
 from sklearn.preprocessing import StandardScaler
 from dotenv import load_dotenv
+import uuid
 
 load_dotenv()
 
-API_KEY=os.getenv("OPENWEATHER_API_KEY")
+API_KEY = os.getenv("OPENWEATHER_API_KEY")
 
 app = Flask(__name__)
 CORS(app)  
+
+API_KEY_CHAT = os.getenv('GEMINI_API_KEY')
+
+url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={API_KEY_CHAT}"
+
+context = """You are a weather assistant AI, helping users check current weather, forecasts, and climate-related tips. 
+Your role is to provide accurate and concise weather information, such as temperature, precipitation, wind, and suggestions (e.g., bring an umbrella).
+Always reply in the same language the user used (English or Indonesian). Keep answers short and helpful, like a mini-chatbot.
+Adapt responses based on user input, such as location, time, or activity plans."""
+
+
+conversations = {}
+
+def get_response_from_gemini(user_input, conversation_history=None):
+    if conversation_history is None:
+        conversation_history = []
+    
+    prompt = f"{context}\n"
+    
+    for entry in conversation_history:
+        if entry['role'] == 'user':
+            prompt += f"User: {entry['content']}\n"
+        else:
+            prompt += f"AI: {entry['content']}\n"
+    
+    prompt += f"User: {user_input}\nAI:"
+    
+    data = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+    }
+
+    response = requests.post(url, json=data, headers={"Content-Type": "application/json"})
+    
+    if response.status_code == 200:
+        result = response.json()
+        output_text = result['candidates'][0]['content']['parts'][0]['text']
+        return output_text
+    else:
+        return f"Error: {response.status_code} - {response.text}"
+
+@app.route('/api/chat', methods=['POST'])
+def chat():
+    data = request.json
+    user_input = data.get('message', '')
+    session_id = data.get('sessionId', str(uuid.uuid4()))
+    
+    if not user_input:
+        return jsonify({'error': 'No message provided'}), 400
+    
+    if session_id not in conversations:
+        conversations[session_id] = []
+    
+    conversations[session_id].append({
+        'role': 'user',
+        'content': user_input
+    })
+    
+    ai_response = get_response_from_gemini(user_input, conversations[session_id])
+    
+    conversations[session_id].append({
+        'role': 'assistant',
+        'content': ai_response
+    })
+    
+    if len(conversations[session_id]) > 10:
+        conversations[session_id] = conversations[session_id][-10:]
+    
+    return jsonify({
+        'response': ai_response,
+        'sessionId': session_id
+    })
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    session_id = request.args.get('sessionId', '')
+    
+    if not session_id or session_id not in conversations:
+        return jsonify({'error': 'Invalid session ID'}), 400
+    
+    return jsonify({
+        'history': conversations[session_id],
+        'sessionId': session_id
+    })
 
 def load_model(model_path):
     try:
@@ -403,45 +495,6 @@ def predict_from_weather():
     
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    # Check if models directory exists and list its contents
-    models_dir_info = {}
-    models_dir = "models"
-    if os.path.exists(models_dir):
-        models_dir_info["exists"] = True
-        models_dir_info["contents"] = []
-        for file in os.listdir(models_dir):
-            full_path = os.path.join(models_dir, file)  
-            models_dir_info["contents"].append({
-                "name": file,
-                "size": os.path.getsize(full_path),
-                "path": full_path
-            })
-    else:
-        models_dir_info["exists"] = False
-        models_dir_info["contents"] = []
-
-    return jsonify({
-        "status": "healthy", 
-        "working_directory": os.getcwd(),
-        "script_directory": os.path.dirname(os.path.abspath(__file__)),
-        "models_directory": models_dir_info,
-        "models_loaded": {
-            "date_model": date_model is not None,
-            "weather_model": weather_model is not None,
-            "predict_date_model": predict_date_model is not None,
-            "date_scaler": date_scaler is not None,
-            "weather_scaler": weather_scaler is not None,
-            "predict_date_scaler": predict_date_scaler is not None
-        },
-        "model_paths": {
-            "DATE_MODEL_PATH": DATE_MODEL_PATH,
-            "WEATHER_MODEL_PATH": WEATHER_MODEL_PATH,
-            "PREDICT_DATE_MODEL_PATH": PREDICT_DATE_MODEL_PATH
-        }
-    })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000) 
