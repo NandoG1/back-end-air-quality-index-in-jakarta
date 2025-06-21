@@ -193,10 +193,6 @@ def get_air_quality_trend(lat, lon, start_date, end_date, api_key):
                 
                 stats[pollutant] = {
                     'mean': series.mean(),
-                    'std': series.std() if len(series) > 1 else 0,
-                    'median': series.median(),
-                    'last': series.iloc[-1] if not series.empty else 0,
-                    'slope': slope
                 }
             
             return {
@@ -247,7 +243,7 @@ def predict_from_date():
         features_dict = {}
         
         pollutant_order = ['pm10', 'so2', 'co', 'o3', 'no2']
-        stat_order = ['mean', 'std', 'median', 'last', 'slope']
+        stat_order = ['mean']
         
         for pollutant in pollutant_order:
             for stat in stat_order:
@@ -317,10 +313,6 @@ def predict_from_date():
         for pollutant, values in stats.items():
             pollutant_stats[pollutant] = {
                 'mean': float(values['mean']),
-                'std': float(values['std']),
-                'median': float(values['median']),
-                'last': float(values['last']),
-                'slope': float(values['slope'])
             }
         
         result = {
