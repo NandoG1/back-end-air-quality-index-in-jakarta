@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import os
 import numpy as np
 import requests
+from sklearn.preprocessing import StandardScaler
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -77,6 +78,59 @@ predict_date_scaler = None
 
 JAKARTA_LAT = -6.2088
 JAKARTA_LON = 106.8456
+
+def init_models():
+    global date_model, weather_model, date_scaler, weather_scaler, predict_date_model, predict_date_scaler
+    
+    print("\nInitializing models...")
+    print(f"Current working directory: {os.getcwd()}")
+    print(f"Script directory: {os.path.dirname(os.path.abspath(__file__))}")
+    
+    # List contents of models directory
+    models_dir = "models"
+    if os.path.exists(models_dir):
+        print(f"Contents of {models_dir} directory:")
+        for file in os.listdir(models_dir):
+            full_path = os.path.join(models_dir, file)
+            print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
+    else:
+        print(f"Models directory '{models_dir}' does not exist!")
+        # Try absolute path
+        abs_models_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "models")
+        if os.path.exists(abs_models_dir):
+            print(f"Found models directory at: {abs_models_dir}")
+            print(f"Contents:")
+            for file in os.listdir(abs_models_dir):
+                full_path = os.path.join(abs_models_dir, file)
+                print(f"  {file} - Size: {os.path.getsize(full_path)} bytes")
+    
+    date_model = load_model(DATE_MODEL_PATH)
+    weather_model = load_model(WEATHER_MODEL_PATH)
+    date_scaler = load_model(DATE_SCALER_PATH)
+    weather_scaler = load_model(WEATHER_SCALER_PATH)
+    
+    predict_date_model = load_model(DATE_MODEL_PATH)
+    predict_date_scaler = load_model(PREDICT_DATE_SCALER_PATH)
+    
+    if date_scaler is None:
+        date_scaler = StandardScaler()
+        print("Created new date_scaler")
+    if weather_scaler is None:
+        weather_scaler = StandardScaler()
+        print("Created new weather_scaler")
+    if predict_date_scaler is None:
+        predict_date_scaler = StandardScaler()
+        print("Created new predict_date_scaler")
+        
+    print("\nModel loading status:")
+    print(f"date_model: {'Loaded' if date_model is not None else 'Failed'}") 
+    print(f"weather_model: {'Loaded' if weather_model is not None else 'Failed'}") 
+    print(f"date_scaler: {'Loaded' if date_scaler is not None else 'Failed'}") 
+    print(f"weather_scaler: {'Loaded' if weather_scaler is not None else 'Failed'}") 
+    print(f"predict_date_model: {'Loaded' if predict_date_model is not None else 'Failed'}") 
+    print(f"predict_date_scaler: {'Loaded' if predict_date_scaler is not None else 'Failed'}")
+
+init_models()
 
 CATEGORY_LABELS = {
     0: "BAIK", 
