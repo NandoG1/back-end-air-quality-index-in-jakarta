@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Make sure models directory exists and is readable
-RUN ls -la models/ || echo "Models directory not found"
+RUN ls -la /app/models/ || echo "Models directory not found"
 
 # Set environment variables
 ENV PYTHONPATH=/app
